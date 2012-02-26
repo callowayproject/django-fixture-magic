@@ -41,7 +41,7 @@ class Command(BaseCommand):
             main_model = args[0]
             (app_label, model_name) = main_model.split('.')
             ids = args[1:]
-            assert(ids)
+#            assert(ids)
         except IndexError:
             raise CommandError(error_text %'No object_class or id arguments supplied.')
         except ValueError:
@@ -62,12 +62,18 @@ class Command(BaseCommand):
             if _.strip()
         ]
 
+        # Lookup initial model.
         dump_me = loading.get_model(app_label, model_name)
-        try:
-            objs = dump_me.objects.filter(pk__in=[int(i) for i in ids])
-        except ValueError:
-            # We might have primary keys thar are just strings...
-            objs = dump_me.objects.filter(pk__in=ids)
+        
+        # Lookup initial model records.
+        if ids:
+            try:
+                objs = dump_me.objects.filter(pk__in=[int(i) for i in ids])
+            except ValueError:
+                # We might have primary keys that are just strings...
+                objs = dump_me.objects.filter(pk__in=ids)
+        else:
+            objs = dump_me.objects.all()
 
         main_model = main_model.lower()
         serialization_order = []
