@@ -1,12 +1,18 @@
+import sys
 from optparse import make_option
+from collections import defaultdict
 
 from django.core.exceptions import FieldError, ObjectDoesNotExist
 from django.core.management.base import BaseCommand, CommandError
 from django.core.serializers import serialize
-from django.db.models import loading
+from django.db.models import loading, ForeignKey
 
-from fixture_magic.utils import (add_to_serialize_list, serialize_me,
-        serialize_fully)
+from fixture_magic.utils import (
+    add_to_serialize_list,
+    serialize_me,
+    serialize_fully,
+    get_key,
+)
 
 
 class Command(BaseCommand):
@@ -76,6 +82,8 @@ class Command(BaseCommand):
             objs = dump_me.objects.all()
 
         main_model = main_model.lower()
+        depends_on = defaultdict(set) # {key:set(keys being pointed to)}
+        key_to_object = {}
         serialization_order = []
         if options.get('kitchensink'):
             # Recursively serialize all related objects.
@@ -89,6 +97,9 @@ class Command(BaseCommand):
                     continue
                 priors.add(obj)
                 
+                obj_key = get_key(obj)
+                key_to_object[obj_key] = obj
+                
                 # Skip ignored models.
                 rel_name = obj._meta.app_label+'.'+obj._meta.module_name
                 rel_name = rel_name.lower()
@@ -99,13 +110,13 @@ class Command(BaseCommand):
                 if rel_name != main_model and filter_list and rel_name not in filter_list:
                     continue
                 
-                # Queue current object to be serialized
-                serialization_order.append(obj)
-                
                 # Serialize relations.
                 related_fields = [
                     rel.get_accessor_name()
                     for rel in obj._meta.get_all_related_objects()
+                ] + [
+                    m2m_rel.name
+                    for m2m_rel in obj._meta.many_to_many
                 ]
                 for rel in related_fields:
                     try:
@@ -113,18 +124,40 @@ class Command(BaseCommand):
                         for rel_obj in related_objs:
                             if rel_obj in priors:
                                 continue
+                            rel_key = get_key(rel_obj)
+                            key_to_object[rel_key] = rel_obj
+                            depends_on[rel_key].add(obj_key)
                             queue.append(rel_obj)
                     except FieldError:
                         pass
                     except ObjectDoesNotExist:
                         pass
-                    
+                
+                # Serialize foreign keys.
+                for field in obj._meta.fields:
+                    if isinstance(field, ForeignKey):
+                        fk_obj = obj.__getattribute__(field.name)
+                        fk_key = get_key(fk_obj)
+                        key_to_object[fk_key] = fk_obj
+                        depends_on[obj_key].add(fk_key)
+                        queue.append(fk_obj)
+                
+                # Serialize current object.
+                serialization_order.append(obj)
+
         else:
             # Only serialize the immediate objects.
             serialization_order = objs
-            
-        #add_to_serialize_list(objs)
-        add_to_serialize_list(reversed(serialization_order))
-        serialize_fully()
+        
+        # Order serialization so that dependents come after dependencies.
+        def cmp_depends(a, b):
+            if a in depends_on[b]:
+                return -1
+            elif b in depends_on[a]:
+                return +1
+            return cmp(get_key(a, as_tuple=True), get_key(b, as_tuple=True))
+        serialization_order.sort(cmp=cmp_depends)
+        add_to_serialize_list(serialization_order)
+        
         print serialize('json', [o for o in serialize_me if o is not None],
                         indent=4, use_natural_keys=options['natural'])
