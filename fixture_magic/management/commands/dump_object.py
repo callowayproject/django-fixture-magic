@@ -1,4 +1,5 @@
 import sys
+import re
 from optparse import make_option
 from collections import defaultdict
 
@@ -159,5 +160,12 @@ class Command(BaseCommand):
         serialization_order.sort(cmp=cmp_depends)
         add_to_serialize_list(serialization_order)
         
-        print serialize('json', [o for o in serialize_me if o is not None],
+        output = serialize('json', [o for o in serialize_me if o is not None],
                         indent=4, use_natural_keys=options['natural'])
+        # Remove primary keys so records will not conflict with future existing
+        # models, relying on natural keys to resolve ambiguity.
+        if options['natural']:
+            matches = re.findall('"pk":\s*[0-9]+,', output)
+            for match in matches:
+                output = output.replace(match, '"pk": null,')
+        return output
