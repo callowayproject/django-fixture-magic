@@ -1,9 +1,8 @@
 from setuptools import setup, find_packages
-
-
+import fixture_magic
 setup(
         name='django-fixture-magic',
-        version='0.0.3',
+        version=fixture_magic.__version__,
         description='A few extra management tools to handle fixtures.',
         long_description=open('README.rst').read(),
         author='Dave Dash',
