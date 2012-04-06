@@ -157,6 +157,7 @@ class Command(BaseCommand):
             elif b in depends_on[a]:
                 return +1
             return cmp(get_key(a, as_tuple=True), get_key(b, as_tuple=True))
+        serialization_order = list(serialization_order)
         serialization_order.sort(cmp=cmp_depends)
         add_to_serialize_list(serialization_order)
         

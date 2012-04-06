@@ -1,10 +1,13 @@
+import os
 from setuptools import setup, find_packages
 import fixture_magic
+BASE_DIR = os.path.abspath(os.path.split(__file__)[0])
+os.chdir(BASE_DIR)
 setup(
         name='django-fixture-magic',
         version=fixture_magic.__version__,
         description='A few extra management tools to handle fixtures.',
-        long_description=open('README.rst').read(),
+        long_description=open(os.path.join(BASE_DIR, 'README.rst')).read(),
         author='Dave Dash',
         author_email='dd+pypi@davedash.com',
         url='http://github.com/davedash/django-fixture-magic',
