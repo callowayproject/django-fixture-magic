@@ -26,6 +26,14 @@ class Command(BaseCommand):
                 action='store_true', dest='kitchensink',
                 default=False,
                 help='Attempts to get related objects as well.'),
+            make_option('--just-fk-kitchensink', '-j',
+                action='store_true', dest='just_fk_kitchensink',
+                default=False,
+                help='Only gets fk related objects.'),
+            make_option('--limit', '-l',
+                dest='limit',
+                default=None,
+                help='number of models to store, taken randomly'),
             make_option('--natural', '-n',
                 action='store_true', dest='natural',
                 default=False,
@@ -79,6 +87,9 @@ class Command(BaseCommand):
             except ValueError:
                 # We might have primary keys that are just strings...
                 objs = dump_me.objects.filter(pk__in=ids)
+        elif options.get('limit'):
+            limit = int(options.get('limit'))
+            objs = dump_me.objects.order_by('?')[:limit]
         else:
             objs = dump_me.objects.all()
 
@@ -86,7 +97,7 @@ class Command(BaseCommand):
         depends_on = defaultdict(set) # {key:set(keys being pointed to)}
         key_to_object = {}
         serialization_order = []
-        if options.get('kitchensink'):
+        if options.get('kitchensink') or options.get('just_fk_kitchensink'):
             # Recursively serialize all related objects.
             priors = set()
             queue = list(objs)
@@ -112,13 +123,16 @@ class Command(BaseCommand):
                     continue
                 
                 # Serialize relations.
-                related_fields = [
-                    rel.get_accessor_name()
-                    for rel in obj._meta.get_all_related_objects()
-                ] + [
-                    m2m_rel.name
-                    for m2m_rel in obj._meta.many_to_many
-                ]
+                if options.get('just_fk_kitchensink'):
+                    related_fields = []
+                else:
+                    related_fields = [
+                        rel.get_accessor_name()
+                        for rel in obj._meta.get_all_related_objects()
+                    ] + [
+                        m2m_rel.name
+                        for m2m_rel in obj._meta.many_to_many
+                    ]
                 for rel in related_fields:
                     try:
                         related_objs = obj.__getattribute__(rel).all()
