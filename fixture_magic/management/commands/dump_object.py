@@ -138,10 +138,11 @@ class Command(BaseCommand):
                 for field in obj._meta.fields:
                     if isinstance(field, ForeignKey):
                         fk_obj = obj.__getattribute__(field.name)
-                        fk_key = get_key(fk_obj)
-                        key_to_object[fk_key] = fk_obj
-                        depends_on[obj_key].add(fk_key)
-                        queue.append(fk_obj)
+                        if fk_obj:
+                            fk_key = get_key(fk_obj)
+                            key_to_object[fk_key] = fk_obj
+                            depends_on[obj_key].add(fk_key)
+                            queue.append(fk_obj)
                 
                 # Serialize current object.
                 serialization_order.append(obj)
