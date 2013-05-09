@@ -26,6 +26,14 @@ class Command(BaseCommand):
                 action='store_true', dest='kitchensink',
                 default=False,
                 help='Attempts to get related objects as well.'),
+            make_option('--kitchensink-depth',
+                dest='kitchensink_depth',
+                default=None,
+                help='Max depth related objects to get'),
+            make_option('--kitchensink-limit',
+                dest='kitchensink_limit',
+                default=None,
+                help='Max number related objects to get'),
             make_option('--just-fk-kitchensink', '-j',
                 action='store_true', dest='just_fk_kitchensink',
                 default=False,
@@ -97,18 +105,24 @@ class Command(BaseCommand):
         depends_on = defaultdict(set) # {key:set(keys being pointed to)}
         key_to_object = {}
         serialization_order = []
+        max_depth = options.get('kitchensink_depth')
+        max_depth = int(max_depth) if max_depth is not None else None
         if options.get('kitchensink') or options.get('just_fk_kitchensink'):
             # Recursively serialize all related objects.
             priors = set()
             queue = list(objs)
+            queue = zip(queue, [0]*len(queue)) #queue is obj, depth
             while queue:
-                obj = queue.pop(0)
+                obj, depth = queue.pop(0)
+                #abort max depth in kitchensink
+                if max_depth is not None and depth > max_depth:
+                    continue
                 
                 # Abort cyclic references.
                 if obj in priors:
                     continue
                 priors.add(obj)
-                
+
                 obj_key = get_key(obj)
                 key_to_object[obj_key] = obj
                 
@@ -133,16 +147,21 @@ class Command(BaseCommand):
                         m2m_rel.name
                         for m2m_rel in obj._meta.many_to_many
                     ]
+
+                kitchensink_limit = options.get('kitchensink_limit')
+                kitchensink_limit = int(kitchensink_limit) if kitchensink_limit is not None else None
                 for rel in related_fields:
                     try:
                         related_objs = obj.__getattribute__(rel).all()
+                        if kitchensink_limit:
+                            related_objs = related_objs[:kitchensink_limit]
                         for rel_obj in related_objs:
                             if rel_obj in priors:
                                 continue
                             rel_key = get_key(rel_obj)
                             key_to_object[rel_key] = rel_obj
                             depends_on[rel_key].add(obj_key)
-                            queue.append(rel_obj)
+                            queue.append((rel_obj, depth+1))
                     except FieldError:
                         pass
                     except ObjectDoesNotExist:
@@ -156,7 +175,7 @@ class Command(BaseCommand):
                             fk_key = get_key(fk_obj)
                             key_to_object[fk_key] = fk_obj
                             depends_on[obj_key].add(fk_key)
-                            queue.append(fk_obj)
+                            queue.append((fk_obj, depth+1))
                 
                 # Serialize current object.
                 serialization_order.append(obj)
