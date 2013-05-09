@@ -114,9 +114,7 @@ class Command(BaseCommand):
             queue = zip(queue, [0]*len(queue)) #queue is obj, depth
             while queue:
                 obj, depth = queue.pop(0)
-                #abort max depth in kitchensink
-                if max_depth is not None and depth > max_depth:
-                    continue
+
                 
                 # Abort cyclic references.
                 if obj in priors:
@@ -136,8 +134,13 @@ class Command(BaseCommand):
                 if rel_name != main_model and filter_list and rel_name not in filter_list:
                     continue
                 
+                #abort max depth in kitchensink
+                abort_max_depth = False
+                if max_depth is not None and depth > max_depth:
+                    abort_max_depth = True
+
                 # Serialize relations.
-                if options.get('just_fk_kitchensink'):
+                if options.get('just_fk_kitchensink') or abort_max_depth:
                     related_fields = []
                 else:
                     related_fields = [
