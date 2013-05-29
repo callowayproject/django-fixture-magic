@@ -7,6 +7,7 @@ from django.core.exceptions import FieldError, ObjectDoesNotExist
 from django.core.management.base import BaseCommand, CommandError
 from django.core.serializers import serialize
 from django.db.models import loading, ForeignKey
+from django.db import models
 
 from fixture_magic.utils import (
     add_to_serialize_list,
@@ -155,7 +156,13 @@ class Command(BaseCommand):
                 kitchensink_limit = int(kitchensink_limit) if kitchensink_limit is not None else None
                 for rel in related_fields:
                     try:
-                        related_objs = obj.__getattribute__(rel).all()
+                        related_objs = obj.__getattribute__(rel)
+                        #handle OneToOneField case for related object
+                        if isinstance(related_objs, models.Model):
+                            related_objs = [related_objs]
+                        else: #everything else uses a related manager
+                            related_objs = related_objs.all()
+
                         if kitchensink_limit:
                             related_objs = related_objs[:kitchensink_limit]
                         for rel_obj in related_objs:
