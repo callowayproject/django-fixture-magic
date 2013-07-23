@@ -33,18 +33,27 @@ def get_fields(obj):
 
 
 def serialize_fully():
-    index = 0
+    return
+#    index = 0
+#
+#    while index < len(serialize_me):
+#        for field in get_fields(serialize_me[index]):
+#            if isinstance(field, models.ForeignKey):
+#                add_to_serialize_list(
+#                    [serialize_me[index].__getattribute__(field.name)])
+#
+#        index = index + 1
+#
+#    serialize_me.reverse()
 
-    while index < len(serialize_me):
-        for field in get_fields(serialize_me[index]):
-            if isinstance(field, models.ForeignKey):
-                add_to_serialize_list(
-                    [serialize_me[index].__getattribute__(field.name)])
-
-        index = index + 1
-
-    serialize_me.reverse()
-
+def get_key(obj, as_tuple=False):
+    key = (
+        obj._meta.app_label,
+        obj._meta.module_name,
+        obj.pk)
+    if as_tuple:
+        return key
+    return ':'.join(map(str, key))
 
 def add_to_serialize_list(objs):
     for obj in objs:
@@ -58,8 +67,7 @@ def add_to_serialize_list(objs):
         if obj._meta.proxy:
             obj = obj._meta.proxy_for_model.objects.get(pk=obj.pk)
 
-        key = "%s:%s:%s" % (obj._meta.app_label, obj._meta.module_name,
-                            obj.pk)
+        key = get_key(obj)
         if key not in seen:
             serialize_me.append(obj)
             seen[key] = 1
